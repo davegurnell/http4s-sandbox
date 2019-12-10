@@ -10,20 +10,31 @@ import org.http4s.server.middleware.Logger
 import scala.concurrent.ExecutionContext.global
 
 object QuickstartServer {
-
-  def stream[F[_]: ConcurrentEffect](implicit T: Timer[F], C: ContextShift[F]): Stream[F, Nothing] = {
+  def stream[F[_]: ConcurrentEffect](
+      implicit T: Timer[F],
+      C: ContextShift[F]
+  ): Stream[F, Nothing] = {
     for {
       client <- BlazeClientBuilder[F](global).stream
-      helloWorldAlg = HelloWorld.impl[F]
-      jokeAlg = Jokes.impl[F](client)
+
+      greetingDatabase = new MockGreetingDatabase[F]
+      helloWorldService = new GenericHelloWorldService[F](greetingDatabase)
+      jokeService = new GenericJokeService[F](client)
+
+      routes = new QuickstartRoutes(
+        greetingDatabase,
+        helloWorldService,
+        jokeService
+      )
 
       // Combine Service Routes into an HttpApp.
       // Can also be done via a Router if you
       // want to extract a segments not checked
       // in the underlying routes.
       httpApp = (
-        QuickstartRoutes.helloWorldRoutes[F](helloWorldAlg) <+>
-        QuickstartRoutes.jokeRoutes[F](jokeAlg)
+        routes.helloWorldRoutes <+>
+          routes.jokeRoutes <+>
+          routes.greetingRoutes
       ).orNotFound
 
       // With Middlewares in place

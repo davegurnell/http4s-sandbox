@@ -5,28 +5,51 @@ import cats.implicits._
 import org.http4s.HttpRoutes
 import org.http4s.dsl.Http4sDsl
 
-object QuickstartRoutes {
+trait AbstractQuickstartRoutes[F[_]] {
+  def jokeRoutes: HttpRoutes[F]
+  def helloWorldRoutes: HttpRoutes[F]
+  def greetingRoutes: HttpRoutes[F]
+}
 
-  def jokeRoutes[F[_]: Sync](J: Jokes[F]): HttpRoutes[F] = {
-    val dsl = new Http4sDsl[F]{}
+class QuickstartRoutes[F[_]](
+    greetingDatabase: GreetingDatabase[F],
+    helloWorldService: HelloWorldService[F],
+    jokeService: JokeService[F]
+)(implicit sync: Sync[F])
+    extends AbstractQuickstartRoutes[F] {
+  def jokeRoutes: HttpRoutes[F] = {
+    val dsl = new Http4sDsl[F] {}
+
     import dsl._
     HttpRoutes.of[F] {
       case GET -> Root / "joke" =>
         for {
-          joke <- J.get
+          joke <- jokeService.get
           resp <- Ok(joke)
         } yield resp
     }
   }
 
-  def helloWorldRoutes[F[_]: Sync](H: HelloWorld[F]): HttpRoutes[F] = {
-    val dsl = new Http4sDsl[F]{}
+  def helloWorldRoutes: HttpRoutes[F] = {
+    val dsl = new Http4sDsl[F] {}
     import dsl._
     HttpRoutes.of[F] {
       case GET -> Root / "hello" / name =>
         for {
-          greeting <- H.hello(HelloWorld.Name(name))
+          greeting <- helloWorldService.hello(name)
           resp <- Ok(greeting)
+        } yield resp
+    }
+  }
+
+  def greetingRoutes: HttpRoutes[F] = {
+    val dsl = new Http4sDsl[F] {}
+    import dsl._
+    HttpRoutes.of[F] {
+      case GET -> Root / "greeting" / name / greeting =>
+        for {
+          greeting <- greetingDatabase.save(name, greeting)
+          resp <- Ok(())
         } yield resp
     }
   }
